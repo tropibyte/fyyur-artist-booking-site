@@ -17,6 +17,10 @@ CONSTRAINT_MESSAGES = {
         'That artist is already booked at that date and time.',
     'uq_availability_window':
         'That availability window is already published.',
+    # Raised by trg_show_within_availability, which names itself so this layer
+    # can translate it like any other constraint.
+    'ck_show_within_availability':
+        'That artist is not available at that date and time.',
     'uq_album_artist_name':
         'That artist already has an album with that name.',
     'uq_song_album_title': 'Two tracks on that album share a title.',

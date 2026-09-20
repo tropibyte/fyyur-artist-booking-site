@@ -3,6 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 import pytest
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from models import (
@@ -16,6 +17,12 @@ from models import (
     parse_city_state,
     utcnow,
 )
+
+
+def db_count():
+    from sqlalchemy import func as sa_func
+
+    return sa_func.count()
 
 
 def _venue(**overrides):
@@ -123,11 +130,50 @@ def test_seeking_talent_requires_a_description(seeded):
 
 
 def test_an_artist_cannot_be_booked_twice_at_the_same_moment(seeded):
+    # Artist 5 publishes no availability windows, so this exercises the unique
+    # index rather than trg_show_within_availability.
     when = datetime(2036, 1, 1, 20, 0, tzinfo=timezone.utc)
-    seeded.session.add(Show(artist_id=4, venue_id=1, start_time=when))
+    seeded.session.add(Show(artist_id=5, venue_id=1, start_time=when))
     seeded.session.commit()
 
-    seeded.session.add(Show(artist_id=4, venue_id=2, start_time=when))
+    seeded.session.add(Show(artist_id=5, venue_id=2, start_time=when))
+    with pytest.raises(IntegrityError):
+        seeded.session.commit()
+
+
+def test_show_outside_availability_is_rejected_by_the_database(seeded):
+    """The rule holds without ShowForm: this writes straight through the ORM.
+
+    Artist 4 publishes windows in 2019, Jan 2035 and Feb 2035 only.
+    """
+    outside = datetime(2035, 3, 1, 20, 0, tzinfo=timezone.utc)
+    seeded.session.add(Show(artist_id=4, venue_id=1, start_time=outside))
+    with pytest.raises(IntegrityError) as caught:
+        seeded.session.commit()
+    # The trigger names itself, which is what lets controllers.helpers turn it
+    # into a readable flash instead of a 500.
+    assert (caught.value.orig.diag.constraint_name
+            == 'ck_show_within_availability')
+
+
+def test_show_inside_availability_is_accepted_by_the_database(seeded):
+    inside = datetime(2035, 1, 5, 21, 0, tzinfo=timezone.utc)
+    seeded.session.add(Show(artist_id=4, venue_id=1, start_time=inside))
+    seeded.session.commit()  # no exception
+
+
+def test_artist_without_windows_stays_bookable_in_the_database(seeded):
+    """Matt Quevedo publishes nothing, so the trigger must not block him."""
+    whenever = datetime(2041, 7, 4, 20, 0, tzinfo=timezone.utc)
+    seeded.session.add(Show(artist_id=5, venue_id=1, start_time=whenever))
+    seeded.session.commit()  # no exception
+
+
+def test_moving_a_show_outside_availability_is_also_rejected(seeded):
+    """The trigger fires on UPDATE OF start_time, not only on INSERT."""
+    show = seeded.session.scalars(
+        seeded.select(Show).where(Show.artist_id == 6)).first()
+    show.start_time = datetime(2035, 9, 9, 20, 0, tzinfo=timezone.utc)
     with pytest.raises(IntegrityError):
         seeded.session.commit()
 
@@ -148,6 +194,24 @@ def test_two_tracks_cannot_share_a_number(seeded):
 
 
 # -- query helpers -----------------------------------------------------------#
+
+def test_genre_vocabulary_is_seeded_by_the_migration(db):
+    """`flask db upgrade` alone leaves the table usable -- no seed required."""
+    from constants import GENRES
+
+    names = {genre.name for genre in db.session.scalars(db.select(Genre))}
+    assert set(GENRES) <= names
+
+
+def test_unknown_genre_is_rejected_rather_than_created(seeded):
+    before = seeded.session.scalar(
+        seeded.select(db_count()).select_from(Genre))
+    with pytest.raises(ValueError, match='Polka'):
+        Genre.resolve(['Jazz', 'Polka'])
+    seeded.session.rollback()
+    after = seeded.session.scalar(seeded.select(db_count()).select_from(Genre))
+    assert before == after
+
 
 def test_venues_are_grouped_by_city_and_state(seeded):
     areas = Venue.grouped_by_area()
@@ -258,3 +322,27 @@ def test_show_listing_joins_both_parents(seeded):
 
 def test_utcnow_is_timezone_aware():
     assert utcnow().tzinfo is not None
+
+
+# -- index usability ---------------------------------------------------------#
+#
+# The seeded catalogue is three rows, so the planner will always choose a
+# sequential scan on cost.  Disabling seqscan for the statement asks the real
+# question: *can* this index serve this predicate at all?  The previous
+# lower(name) b-tree could not, and nothing caught it.
+
+def test_name_search_can_use_the_trigram_index(seeded):
+    seeded.session.execute(text('SET LOCAL enable_seqscan = off'))
+    plan = seeded.session.execute(text(
+        'EXPLAIN SELECT id FROM "Venue" WHERE name ILIKE :pattern'
+    ), {'pattern': '%music%'}).scalars().all()
+    assert any('ix_venue_name_trgm' in line for line in plan), plan
+
+
+def test_city_state_search_can_use_the_state_city_index(seeded):
+    seeded.session.execute(text('SET LOCAL enable_seqscan = off'))
+    plan = seeded.session.execute(text(
+        'EXPLAIN SELECT id FROM "Venue" '
+        'WHERE state = :state AND lower(city) = :city'
+    ), {'state': 'CA', 'city': 'san francisco'}).scalars().all()
+    assert any('ix_venue_state_city_lower' in line for line in plan), plan

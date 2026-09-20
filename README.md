@@ -13,6 +13,24 @@ identical.
 
 ---
 
+## Quick start
+
+```bash
+createdb fyyur                   # as a superuser; no .env needed
+pip install -r requirements.txt
+flask db upgrade                 # schema, genre vocabulary, indexes, trigger
+flask seed                       # optional: the demo catalogue
+python app.py                    # http://127.0.0.1:5000/
+```
+
+Needs **Python 3.10 or newer** and **PostgreSQL 13 or newer**. With no `.env`,
+the app connects as `postgresql://postgres@127.0.0.1:5432/fyyur`, which is the
+Udacity workspace's setup. In the workspace, run the server with `PORT=3000`.
+
+For a dedicated non-superuser role instead, see [Setup](#setup).
+
+---
+
 ## What it does
 
 **Core**
@@ -33,7 +51,7 @@ identical.
 
 | Feature | Where |
 |---|---|
-| **Artist availability.** An artist publishes windows during which they can be booked; a show outside every published window is rejected. An artist who publishes nothing stays bookable at any time. | `/artists/<id>/availability`, `models.Availability`, `forms.ShowForm.validate_start_time` |
+| **Artist availability.** An artist publishes windows during which they can be booked; a show outside every published window is rejected — by the form *and* by a database trigger, since it is a cross-row rule a CHECK constraint cannot express. An artist who publishes nothing stays bookable at any time. | `/artists/<id>/availability`, `models.Availability`, `forms.ShowForm.validate_start_time`, `trg_show_within_availability` |
 | **Recently listed artists and venues** on the home page, newest first, capped at ten. | `/`, `models.Artist.recent` / `Venue.recent` |
 | **Search by city and state.** `San Francisco, CA` returns everything in that city; a bare `CA` returns everything in the state; anything else is a name/city search. | `models.parse_city_state` |
 | **Discography.** Albums and their tracks appear on the artist page, with track lengths; albums are created through a form with a nested track list. | `/artists/<id>/albums/create`, `models.Album` / `models.Song` |
@@ -46,9 +64,13 @@ identical.
 Python 3.11 · Flask 3 · SQLAlchemy 2 (via Flask-SQLAlchemy 3.1) ·
 Alembic/Flask-Migrate · Flask-WTF · PostgreSQL 18 · pytest.
 
-The starter pinned Flask 1.x-era packages. They are replaced with current
-releases, which is why `requirements.txt` looks nothing like the original: the
-old pins do not build on a supported Python.
+**Minimums: Python 3.10, PostgreSQL 13.** Six of the pinned packages
+(Flask-WTF, WTForms, pytest, alembic, psycopg2-binary, python-dotenv) require
+Python 3.10 or newer, so the project brief's "Python 3.9 or lower" note does
+not apply here — the starter's Flask 1.x-era pins do not build on a supported
+Python, so the stack was moved forward instead. PostgreSQL 13 is the floor
+because the search indexes use `pg_trgm`, which became a *trusted* extension in
+13 and can therefore be created by the database owner without superuser rights.
 
 ---
 
@@ -93,6 +115,10 @@ usually one line of intent (`Venue.grouped_by_area()`) and a `render_template`.
 Everything below assumes PostgreSQL is installed and running.
 
 ### 1. Create the database and role
+
+Optional: the app runs against `postgres` with no password out of the box (see
+[Quick start](#quick-start)). These steps create a dedicated non-superuser role
+instead, which is how it is set up on the development machine.
 
 Windows PowerShell:
 
@@ -147,12 +173,16 @@ pip install -r requirements.txt
 flask db upgrade
 ```
 
-To regenerate the migration from scratch instead:
+That applies three revisions: the schema, then the trigram search indexes and
+the genre vocabulary, then the availability trigger.
 
-```bash
-flask db migrate -m "fyyur schema"
-flask db upgrade
-```
+Apply migrations with `flask db upgrade` rather than regenerating them.
+Alembic's autogenerate cannot see a plpgsql trigger at all and does not render
+expression indexes reliably, so those revisions are hand-written. Autogenerate
+still works as a *drift check* — on an up-to-date database,
+`flask db migrate -m "drift check"` reports "No changes in schema detected",
+which is worth running after any model edit (delete the empty revision it
+writes if it produces one).
 
 ### 5. Load the demo catalogue (optional but recommended)
 
@@ -180,10 +210,15 @@ http://127.0.0.1:5000/ — or set `PORT=3000` for the Udacity workspace.
 pytest
 ```
 
-60-odd tests run against the real `fyyur_test` database, not SQLite: most of
-what is worth testing here (CHECK constraints, `ON DELETE CASCADE`, `ILIKE`,
-`FILTER` aggregates) either behaves differently or does not exist on another
-engine. The suite covers the models, every constraint, the query helpers, and
+69 tests run against the real `fyyur_test` database, not SQLite: most of what
+is worth testing here (CHECK constraints, `ON DELETE CASCADE`, `ILIKE`,
+`FILTER` aggregates, a plpgsql trigger) either behaves differently or does not
+exist on another engine. The test schema is built by **running the migration
+chain**, not `create_all()` — the extension, the expression indexes and the
+trigger exist only in migrations, so `create_all()` would test a database the
+app never runs against. Two tests assert with `EXPLAIN` that the search indexes
+are actually usable, because the previous ones were not and nothing caught
+it. The suite covers the models, every constraint, the query helpers, and
 every endpoint end-to-end — including the rubric's click-through: book a show,
 then assert it appears on both the artist's page and the venue's page.
 
@@ -214,8 +249,11 @@ is in **[docs/SCHEMA.md](docs/SCHEMA.md)**. In brief:
   `ArtistGenre`. A comma-separated string or an array column would break first
   normal form and make "everything tagged Jazz" a substring scan.
 * **Every rule is enforced twice**: once in the form, for a readable message,
-  and once in the schema, because two concurrent requests can both pass a
-  Python check and only one can win a unique index.
+  and once in the database, because two concurrent requests can both pass a
+  Python check and only one can win a unique index. That includes the
+  cross-row rule — `trg_show_within_availability` re-checks each booking
+  against the artist's windows, so a script or a psql session cannot slip past
+  what the form enforces.
 * **All timestamps are `TIMESTAMP WITH TIME ZONE`** and the application works
   in UTC throughout.
 

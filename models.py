@@ -20,7 +20,8 @@ templates already expect, so the view layer stays a one-liner.
 
 from datetime import datetime, timezone
 
-from sqlalchemy import CheckConstraint, ForeignKey, Index, UniqueConstraint, func, text
+from sqlalchemy import (CheckConstraint, ForeignKey, Index, UniqueConstraint,
+                        column, func, text)
 
 from constants import GENRES, US_STATES
 from extensions import db
@@ -82,7 +83,8 @@ class Genre(db.Model):
                               back_populates='genres')
 
     __table_args__ = (
-        CheckConstraint("name IN {}".format(GENRES), name='ck_genre_name_allowed'),
+        CheckConstraint(column('name').in_(GENRES),
+                        name='ck_genre_name_allowed'),
     )
 
     def __repr__(self):
@@ -105,14 +107,15 @@ class Genre(db.Model):
             )
         }
 
-        resolved = []
-        for name in wanted:
-            genre = existing.get(name)
-            if genre is None:
-                genre = Genre(name=name)
-                db.session.add(genre)
-            resolved.append(genre)
-        return resolved
+        missing = [name for name in wanted if name not in existing]
+        if missing:
+            # The vocabulary is closed (ck_genre_name_allowed) and seeded by
+            # migration, so an unknown name is a bug in the caller rather than
+            # a new genre.  The forms reject it first (AnyOfMultiple); this is
+            # the backstop for scripts and seeds.
+            raise ValueError('Unknown genre(s): {}'.format(', '.join(missing)))
+
+        return [existing[name] for name in wanted]
 
 
 # ---------------------------------------------------------------------------#
@@ -174,14 +177,23 @@ class Venue(ContactMixin, TimestampMixin, db.Model):
         # No two listings for the same room at the same address.
         UniqueConstraint('name', 'address', 'city', 'state',
                          name='uq_venue_name_address'),
-        CheckConstraint("state IN {}".format(US_STATES), name='ck_venue_state'),
+        CheckConstraint(column('state').in_(US_STATES), name='ck_venue_state'),
         CheckConstraint("length(trim(name)) > 0", name='ck_venue_name_present'),
         # A venue that says it is seeking talent has to say what for.
         CheckConstraint('NOT seeking_talent OR seeking_description IS NOT NULL',
                         name='ck_venue_seeking_description'),
-        # Case-insensitive search uses this index instead of scanning.
-        Index('ix_venue_name_lower', text('lower(name)')),
-        Index('ix_venue_city_state', 'city', 'state'),
+        # Search runs ILIKE '%term%', which compiles to the `~~*` operator.
+        # No b-tree can serve a leading wildcard -- not even one on lower(name),
+        # which only answers equality and prefix matches.  A trigram GIN index
+        # is the structure that does; the planner BitmapOrs the two for a
+        # name-or-city search.
+        Index('ix_venue_name_trgm', 'name', postgresql_using='gin',
+              postgresql_ops={'name': 'gin_trgm_ops'}),
+        Index('ix_venue_city_trgm', 'city', postgresql_using='gin',
+              postgresql_ops={'city': 'gin_trgm_ops'}),
+        # "City, ST" search: state leads, so a bare-state query uses the same
+        # index efficiently instead of scanning every entry of a city-first one.
+        Index('ix_venue_state_city_lower', 'state', text('lower(city)')),
     )
 
     def __repr__(self):
@@ -310,7 +322,7 @@ class Venue(ContactMixin, TimestampMixin, db.Model):
         statement = cls._listing_select()
 
         if city is not None:
-            statement = statement.where(Venue.city.ilike(city),
+            statement = statement.where(func.lower(Venue.city) == city.lower(),
                                         Venue.state == state)
         elif state is not None:
             statement = statement.where(Venue.state == state)
@@ -379,12 +391,16 @@ class Artist(ContactMixin, TimestampMixin, db.Model):
     __table_args__ = (
         # Two acts may share a name in different towns, but not in one town.
         UniqueConstraint('name', 'city', 'state', name='uq_artist_name_city'),
-        CheckConstraint("state IN {}".format(US_STATES), name='ck_artist_state'),
+        CheckConstraint(column('state').in_(US_STATES), name='ck_artist_state'),
         CheckConstraint("length(trim(name)) > 0", name='ck_artist_name_present'),
         CheckConstraint('NOT seeking_venue OR seeking_description IS NOT NULL',
                         name='ck_artist_seeking_description'),
-        Index('ix_artist_name_lower', text('lower(name)')),
-        Index('ix_artist_city_state', 'city', 'state'),
+        # See the note on Venue: ILIKE needs trigrams, not a lower() b-tree.
+        Index('ix_artist_name_trgm', 'name', postgresql_using='gin',
+              postgresql_ops={'name': 'gin_trgm_ops'}),
+        Index('ix_artist_city_trgm', 'city', postgresql_using='gin',
+              postgresql_ops={'city': 'gin_trgm_ops'}),
+        Index('ix_artist_state_city_lower', 'state', text('lower(city)')),
     )
 
     def __repr__(self):
@@ -507,7 +523,7 @@ class Artist(ContactMixin, TimestampMixin, db.Model):
         statement = cls._listing_select()
 
         if city is not None:
-            statement = statement.where(Artist.city.ilike(city),
+            statement = statement.where(func.lower(Artist.city) == city.lower(),
                                         Artist.state == state)
         elif state is not None:
             statement = statement.where(Artist.state == state)

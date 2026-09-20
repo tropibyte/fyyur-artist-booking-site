@@ -129,10 +129,17 @@ SHOWS = [
     {'venue_id': 3, 'artist_id': 6, 'start_time': _utc(2035, 4, 15, 20, 0)},
 ]
 
-# Guns N Petals only takes bookings in two windows; The Wild Sax Band's window
+# Guns N Petals takes bookings in three windows; The Wild Sax Band's window
 # covers its three booked dates.  Matt Quevedo publishes nothing, which means
 # "always bookable".
+#
+# The first window is historical: it covers the 2019 show Guns N Petals already
+# played.  Since `trg_show_within_availability` enforces the rule in the
+# database, the seeded catalogue has to satisfy it rather than rely on being
+# inserted before the windows exist.
 AVAILABILITY = [
+    {'artist_id': 4, 'start_time': _utc(2019, 5, 21, 18, 0),
+     'end_time': _utc(2019, 5, 22, 2, 0)},
     {'artist_id': 4, 'start_time': _utc(2035, 1, 5, 18, 0),
      'end_time': _utc(2035, 1, 5, 23, 59)},
     {'artist_id': 4, 'start_time': _utc(2035, 2, 2, 18, 0),
@@ -246,11 +253,15 @@ def seed_all(reset=True):
 
     db.session.flush()  # artists and venues need ids before shows reference them
 
-    for record in SHOWS:
-        db.session.add(Show(**record))
-
+    # Availability first: `trg_show_within_availability` checks each Show
+    # against the windows that exist at insert time, so seeding the windows
+    # afterwards would let the shows through unchecked.
     for record in AVAILABILITY:
         db.session.add(Availability(**record))
+    db.session.flush()
+
+    for record in SHOWS:
+        db.session.add(Show(**record))
 
     for record in ALBUMS:
         data = dict(record)

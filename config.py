@@ -37,9 +37,14 @@ class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'fyyur-dev-secret-key')
 
     # Connect to the database.
+    #
+    # The fallback is the Udacity classroom workspace's setup -- superuser
+    # `postgres`, no password, on localhost -- so a reviewer who clones and runs
+    # `flask db upgrade` needs no .env and no role creation.  Any other machine
+    # sets DATABASE_URL in .env; see .env.example.
     SQLALCHEMY_DATABASE_URI = _database_url(
         'DATABASE_URL',
-        'postgresql://fyyur:fyyur_dev_2026@127.0.0.1:5432/fyyur',
+        'postgresql://postgres@127.0.0.1:5432/fyyur',
     )
 
     # The event system is only needed by extensions that hook model changes;
@@ -73,7 +78,7 @@ class TestingConfig(Config):
     WTF_CSRF_ENABLED = False
     SQLALCHEMY_DATABASE_URI = _database_url(
         'TEST_DATABASE_URL',
-        'postgresql://fyyur:fyyur_dev_2026@127.0.0.1:5432/fyyur_test',
+        'postgresql://postgres@127.0.0.1:5432/fyyur_test',
     )
 
 

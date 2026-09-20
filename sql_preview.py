@@ -40,7 +40,8 @@ def previews():
             .order_by(Venue.name),
         'venues.search_by_city_state':
             Venue._listing_select()
-            .where(Venue.city.ilike('San Francisco'), Venue.state == 'CA')
+            .where(db.func.lower(Venue.city) == 'san francisco',
+                   Venue.state == 'CA')
             .order_by(Venue.name),
         'venues.shows_by_period':
             db.select(Show, Artist)

@@ -155,6 +155,34 @@ other both pass a Python check; only one wins a unique index.
 | `ck_album_release_year` | 1877 (the first sound recording) to 2100. |
 | `ck_song_track_number`, `ck_song_duration` | Positive when present. |
 
+### Trigger
+
+One rule cannot be written as a constraint at all. "A show must start inside
+one of the artist's published availability windows" depends on rows in another
+table, and a CHECK constraint can only see the row being written. Postgres'
+answer is a trigger:
+
+| Object | Rule |
+|---|---|
+| `trg_show_within_availability` (BEFORE INSERT OR UPDATE OF `artist_id`, `start_time` ON `"Show"`) | If the artist has published any `Availability` windows, `start_time` must fall inside one. An artist with no windows stays bookable at any time, matching `Artist.is_available_at`. |
+
+It raises with `ERRCODE = 'check_violation'` and
+`CONSTRAINT = 'ck_show_within_availability'`, so the failure arrives as an
+ordinary `IntegrityError` carrying a constraint name, and
+`controllers/helpers.py` translates it into the same readable message the form
+produces. Without it the rule would live only in `ShowForm`, and anything that
+writes a `Show` another way -- a script, a fixture, a psql session, a second
+process racing the first -- would bypass it.
+
+**What the trigger does not cover**, and these are deliberate:
+
+* Deleting an `Availability` window does not retract shows already booked
+  inside it. A confirmed booking outranks the advisory calendar.
+* A window deleted concurrently with a booking can interleave: both statements
+  see a consistent snapshot and both succeed. Closing that would mean locking
+  the artist's windows on every booking, which is not worth it here.
+* It fires per row, so a bulk `INSERT ... SELECT` pays the check per row.
+
 ### Referential integrity
 
 All foreign keys are `NOT NULL` and declared `ON DELETE CASCADE`, except the
@@ -171,25 +199,48 @@ individually.
 
 Primary keys and unique constraints are indexed automatically. Added on top:
 
-* `ix_venue_name_lower`, `ix_artist_name_lower` — functional indexes on
-  `lower(name)`, which is what case-insensitive `ILIKE` search needs.
-* `ix_venue_city_state`, `ix_artist_city_state` — the "San Francisco, CA"
-  search path.
+* `ix_venue_name_trgm`, `ix_venue_city_trgm` and the two `Artist` equivalents —
+  trigram GIN indexes (`pg_trgm`) on `name` and `city`. Search runs
+  `ILIKE '%term%'`, which compiles to the `~~*` operator; **no b-tree can serve
+  a leading wildcard**, including one on `lower(name)`. An earlier version of
+  this schema had exactly that index with a comment claiming it avoided a scan,
+  and `EXPLAIN` disagreed — with `enable_seqscan = off` the planner still chose
+  a disabled sequential scan, because nothing else could answer the predicate.
+  A trigram index can. `tests/test_models.py` asserts this rather than assuming
+  it.
+* `ix_venue_state_city_lower`, `ix_artist_state_city_lower` — `(state,
+  lower(city))` for the "San Francisco, CA" path. State leads so a bare-state
+  search uses the same index without scanning every city entry, and the city
+  predicate is lowered equality (`lower(city) = :city`) rather than `ILIKE`, so
+  it is index-eligible — and so a `%` typed into the search box is a literal
+  percent sign instead of a wildcard.
 * `Show.artist_id`, `Show.venue_id`, `Show.start_time` — every detail page and
   the upcoming/past split.
 * `created_at` on each entity — the home page's "recently listed" ordering.
 
+`pg_trgm` is a *trusted* extension from PostgreSQL 13 on, so the migration can
+create it as the database owner without superuser rights.
+
 ## Design decisions worth defending
+
+**CHECK constraints are built from SQLAlchemy expressions**
+(`CheckConstraint(column('state').in_(US_STATES))`), not from string
+formatting. The rendered DDL is identical, but `"state IN {}".format(tuple)`
+depends on `repr()` of a tuple happening to be valid SQL: a one-element tuple
+emits a trailing comma and fails at DDL time, and any value containing an
+apostrophe breaks or injects.
 
 **`state` is a CHECK constraint, not a native Postgres `ENUM`.** Both enforce
 the same set. A CHECK constraint can be changed in a one-line migration;
 `ALTER TYPE ... ADD VALUE` cannot run inside a transaction block, which makes
 enum changes awkward to roll back and awkward for Alembic to autogenerate.
 
-**Genres are a table, not an enum or an array.** The vocabulary is seeded from
-`constants.GENRES` by `flask seed-genres`, and `ck_genre_name_allowed` keeps a
-stray insert from inventing a genre. This keeps the referential benefits of a
-lookup table and the closed-set guarantee of an enum.
+**Genres are a table, not an enum or an array.** The vocabulary is inserted by
+migration (`ad1a43b4c107`), so a database that has only had `flask db upgrade`
+run against it can accept a venue immediately; `ck_genre_name_allowed` keeps a
+stray insert from inventing a genre, and `Genre.resolve()` raises rather than
+creating one. This keeps the referential benefits of a lookup table and the
+closed-set guarantee of an enum.
 
 **All timestamps are `TIMESTAMP WITH TIME ZONE`.** Show times are absolute
 moments, and a booking site that stores them naively breaks the first time two

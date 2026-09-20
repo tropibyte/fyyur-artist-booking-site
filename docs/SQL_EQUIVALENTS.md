@@ -15,10 +15,15 @@ and the application prints the statements exactly as psycopg2 will send them
 (`sql_preview.py`). The listings here are those, with the long column lists of
 whole-entity selects abbreviated to `...` for readability.
 
-There is **no raw SQL anywhere in the request path**. The only hand-written SQL
-in the project is one `setval()` call in `seed.py`, because resetting an
-identity sequence is a Postgres administrative operation with no ORM
-equivalent.
+There is **no raw SQL anywhere in the request path**. Hand-written SQL appears
+in exactly three places, all of them things the ORM cannot express:
+
+* one `setval()` call in `seed.py` — resetting an identity sequence is an
+  administrative operation with no ORM equivalent;
+* two expression indexes and the `pg_trgm` extension in migration
+  `ad1a43b4c107` — `op.create_index` cannot write `lower(city)`;
+* the plpgsql function and trigger in migration `9336e0dc82e4` — a cross-row
+  rule has no declarative form.
 
 ---
 
@@ -51,8 +56,16 @@ ORDER BY "Venue".name;
 Searching `"San Francisco, CA"` takes the place branch of the same statement:
 
 ```sql
-WHERE "Venue".city ILIKE 'San Francisco' AND "Venue".state = 'CA'
+WHERE lower("Venue".city) = 'san francisco' AND "Venue".state = 'CA'
 ```
+
+Lowered equality rather than `ILIKE` for two reasons: it can use the
+`(state, lower(city))` index, and it treats a `%` typed into the search box as
+a literal percent sign instead of a wildcard.
+
+The substring branch stays on `ILIKE`, which is what the trigram GIN indexes on
+`name` and `city` are for — see `docs/SCHEMA.md` § Indexes for why a b-tree on
+`lower(name)` cannot serve it.
 
 The `FILTER (WHERE ...)` aggregate is what lets one statement return both the
 rows and their upcoming-show counts; the alternative — a count per row — is the
@@ -202,6 +215,21 @@ If a concurrent request booked the same artist for the same moment, this fails
 on `uq_show_artist_start_time`; `controllers/helpers.commit()` catches the
 `IntegrityError`, rolls back, and flashes *"That artist is already booked at
 that date and time."*
+
+The same `INSERT` also fires `trg_show_within_availability`, which re-runs the
+availability check in the database:
+
+```sql
+-- inside the trigger function
+SELECT 1 FROM "Availability" a
+ WHERE a.artist_id = NEW.artist_id
+   AND NEW.start_time BETWEEN a.start_time AND a.end_time;
+-- no row, and the artist has published windows -> RAISE check_violation
+```
+
+It raises with `CONSTRAINT = 'ck_show_within_availability'`, so it arrives as an
+`IntegrityError` with a constraint name and is translated into a flash exactly
+like the unique-index failure above.
 
 ## INSERT — an album and its tracks, one transaction
 
