@@ -1,59 +1,76 @@
 {% extends 'layouts/main.html' %}
+{% from 'layouts/form_macros.html' import errors, required_mark %}
 {% block title %}Edit Artist{% endblock %}
 {% block content %}
   <div class="form-wrapper">
-    <form class="form" method="post" action="/artists/{{artist.id}}/edit">
-      <h3 class="form-heading">Edit artist <em>{{ artist.name }}</em></h3>
-      <div class="form-group">
-        <label for="name">Name</label>
-        {{ form.name(class_ = 'form-control', autofocus = true) }}
+    <form class="form" method="post" action="{{ url_for('artists.edit_artist_submission', artist_id=artist.id) }}">
+      {{ form.csrf_token }}
+      <h3 class="form-heading">Edit artist <em>{{ artist.name }}</em> <a href="{{ url_for('main.index') }}" title="Back to homepage"><i class="fa fa-home pull-right"></i></a></h3>
+      <div class="form-group{% if form.name.errors %} has-error{% endif %}">
+        <label for="name">Name {{ required_mark() }}</label>
+        {{ form.name(class_ = 'form-control', autofocus = true, required = true) }}
+        {{ errors(form.name) }}
       </div>
       <div class="form-group">
-          <label>City & State</label>
+          <label>City &amp; State {{ required_mark() }}</label>
           <div class="form-inline">
-            <div class="form-group">
-              {{ form.city(class_ = 'form-control', placeholder='City', autofocus = true) }}
+            <div class="form-group{% if form.city.errors %} has-error{% endif %}">
+              {{ form.city(class_ = 'form-control', placeholder='City', required = true) }}
+              {{ errors(form.city) }}
             </div>
-            <div class="form-group">
-              {{ form.state(class_ = 'form-control', placeholder='State', autofocus = true) }}
+            <div class="form-group{% if form.state.errors %} has-error{% endif %}">
+              {{ form.state(class_ = 'form-control', placeholder='State') }}
+              {{ errors(form.state) }}
             </div>
           </div>
       </div>
-      <div class="form-group">
-          <label for="phone">Phone</label>
-          {{ form.phone(class_ = 'form-control', placeholder='xxx-xxx-xxxx', autofocus = true) }}
-        </div>
-      <div class="form-group">
-        <label for="genres">Genres</label>
+      <div class="form-group{% if form.phone.errors %} has-error{% endif %}">
+        <label for="phone">Phone</label>
+        {{ form.phone(class_ = 'form-control', placeholder='xxx-xxx-xxxx') }}
+        {{ errors(form.phone) }}
+      </div>
+      <div class="form-group{% if form.genres.errors %} has-error{% endif %}">
+        <label for="genres">Genres {{ required_mark() }}</label>
         <small>Ctrl+Click to select multiple</small>
-        {{ form.genres(class_ = 'form-control', placeholder='Genres, separated by commas', autofocus = true) }}
+        {{ form.genres(class_ = 'form-control') }}
+        {{ errors(form.genres) }}
       </div>
-      <div class="form-group">
-          <label for="facebook_link">Facebook Link</label>
-          {{ form.facebook_link(class_ = 'form-control', placeholder='http://', autofocus = true) }}
-        </div>
-      
-      <div class="form-group">
-          <label for="image_link">Image Link</label>
-          {{ form.image_link(class_ = 'form-control', placeholder='http://', autofocus = true) }}
+      <div class="form-group{% if form.facebook_link.errors %} has-error{% endif %}">
+        <label for="facebook_link">Facebook Link</label>
+        {{ form.facebook_link(class_ = 'form-control', placeholder='https://www.facebook.com/...') }}
+        {{ errors(form.facebook_link) }}
+      </div>
+
+      <div class="form-group{% if form.image_link.errors %} has-error{% endif %}">
+        <label for="image_link">Image Link</label>
+        {{ form.image_link(class_ = 'form-control', placeholder='https://') }}
+        {{ errors(form.image_link) }}
+      </div>
+
+      <div class="form-group{% if form.website_link.errors %} has-error{% endif %}">
+        <label for="website_link">Website Link</label>
+        {{ form.website_link(class_ = 'form-control', placeholder='https://') }}
+        {{ errors(form.website_link) }}
       </div>
 
       <div class="form-group">
-            <label for="website_link">Website Link</label>
-            {{ form.website_link(class_ = 'form-control', placeholder='http://', autofocus = true) }}
+        <label for="seeking_venue">Looking for Venues</label>
+        {{ form.seeking_venue() }}
       </div>
 
-      <div class="form-group">
-          <label for="seeking_venue">Looking for Venues</label>
-          {{ form.seeking_venue(placeholder='Venue', autofocus = true) }}
+      <div class="form-group{% if form.seeking_description.errors %} has-error{% endif %}">
+        <label for="seeking_description">Seeking Description</label>
+        {{ form.seeking_description(class_ = 'form-control', rows = 3) }}
+        {{ errors(form.seeking_description) }}
       </div>
 
-      <div class="form-group">
-          <label for="seeking_description">Seeking Description</label>
-          {{ form.seeking_description(class_ = 'form-control', autofocus = true) }}
-      </div>
-      
       <input type="submit" value="Edit Artist" class="btn btn-primary btn-lg btn-block">
     </form>
+
+    <p class="form-footnote">
+      <a href="{{ url_for('artists.availability_form', artist_id=artist.id) }}">Manage availability</a>
+      &middot;
+      <a href="{{ url_for('artists.create_album_form', artist_id=artist.id) }}">Add an album</a>
+    </p>
   </div>
 {% endblock %}

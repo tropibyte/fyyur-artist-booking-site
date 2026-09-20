@@ -1,0 +1,114 @@
+/* Styles for the sections this project adds on top of the starter design:
+   inline form errors, the home page's "recently listed" panels, the
+   discography tiles, and the availability tables. Everything reuses the
+   starter's palette and spacing so the additions do not look bolted on. */
+
+/* -- form feedback -------------------------------------------------------- */
+
+.field-error {
+  color: #a94442;
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.field-error i {
+  margin-right: 4px;
+}
+
+abbr.required {
+  color: #a94442;
+  border: none;
+  text-decoration: none;
+  cursor: help;
+}
+
+.form-footnote {
+  margin-top: 20px;
+  font-size: 13px;
+}
+
+/* The track grid and the availability table need more room than the 400px
+   the starter's .form-wrapper allows. */
+.form-wrapper.wide {
+  max-width: 760px;
+}
+
+/* -- home page: recently listed ------------------------------------------- */
+
+.recently-listed {
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: solid 1px #ebebeb;
+}
+
+.recently-listed .items li p {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* -- discography ---------------------------------------------------------- */
+
+.tile-album {
+  height: auto;
+  text-align: left;
+}
+
+.tile-album img {
+  display: block;
+  margin: 0 auto 12px;
+  max-height: 160px;
+}
+
+.tile-album h5 {
+  text-align: center;
+}
+
+.tracklist {
+  padding-left: 20px;
+  margin-bottom: 0;
+}
+
+.tracklist li {
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.track-duration {
+  float: right;
+  opacity: 0.6;
+}
+
+/* -- availability --------------------------------------------------------- */
+
+.availability-list li.past {
+  opacity: 0.45;
+}
+
+.availability-table td,
+.availability-table th {
+  vertical-align: middle !important;
+}
+
+.availability-table form {
+  margin: 0;
+}
+
+.track-table td {
+  vertical-align: top;
+}
+
+.track-table .form-control {
+  min-width: 90px;
+}
+
+/* -- record actions ------------------------------------------------------- */
+
+.record-actions {
+  margin: 30px 0 10px;
+}
+
+.record-actions > a,
+.record-actions > button {
+  margin-right: 8px;
+}

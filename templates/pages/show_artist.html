@@ -72,7 +72,61 @@
 	</div>
 </section>
 
-<a href="/artists/{{ artist.id }}/edit"><button class="btn btn-primary btn-lg">Edit</button></a>
+{# Stand-out: what this artist has released. #}
+{% if artist.albums %}
+<section>
+	<h2 class="monospace">Discography</h2>
+	<div class="row">
+		{% for album in artist.albums %}
+		<div class="col-sm-4">
+			<div class="tile tile-album">
+				{% if album.image_link %}<img src="{{ album.image_link }}" alt="{{ album.name }} cover art" />{% endif %}
+				<h5>{{ album.name }}{% if album.release_year %} <small>({{ album.release_year }})</small>{% endif %}</h5>
+				<ol class="tracklist">
+					{% for song in album.songs %}
+					<li>
+						<span class="track-title">{{ song.title }}</span>
+						{% if song.duration %}<span class="track-duration">{{ song.duration }}</span>{% endif %}
+					</li>
+					{% endfor %}
+				</ol>
+			</div>
+		</div>
+		{% endfor %}
+	</div>
+</section>
+{% endif %}
+
+{# Stand-out: the windows in which this artist accepts bookings. #}
+<section>
+	<h2 class="monospace">Availability</h2>
+	{% if artist.availability %}
+	<ul class="items availability-list">
+		{% for window in artist.availability %}
+		<li{% if window.is_past %} class="past"{% endif %}>
+			<i class="fas fa-calendar-check"></i>
+			<div class="item">
+				<h5>{{ window.start_time|datetime('full') }}</h5>
+				<p>until {{ window.end_time|datetime('full') }}</p>
+			</div>
+		</li>
+		{% endfor %}
+	</ul>
+	{% else %}
+	<p class="not-seeking">
+		<i class="fas fa-moon"></i> No windows published &mdash; this artist can be booked at any time.
+	</p>
+	{% endif %}
+</section>
+
+<div class="record-actions">
+	<a href="{{ url_for('artists.edit_artist', artist_id=artist.id) }}"><button class="btn btn-primary btn-lg">Edit</button></a>
+	<a href="{{ url_for('artists.availability_form', artist_id=artist.id) }}"><button class="btn btn-default btn-lg">Availability</button></a>
+	<a href="{{ url_for('artists.create_album_form', artist_id=artist.id) }}"><button class="btn btn-default btn-lg">Add album</button></a>
+	<button class="btn btn-danger btn-lg delete-record"
+			data-url="{{ url_for('artists.delete_artist', artist_id=artist.id) }}"
+			data-name="{{ artist.name }}">Delete</button>
+</div>
 
 {% endblock %}
 

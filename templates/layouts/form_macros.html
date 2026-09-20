@@ -1,0 +1,20 @@
+{#
+  Shared form-rendering helpers.
+
+  `errors(field)` prints the validation messages WTForms attached to a field,
+  directly under the control that produced them, so a rejected submission says
+  what is wrong where it is wrong instead of only at the top of the page.
+#}
+{% macro errors(field) -%}
+  {%- if field.errors -%}
+  <div class="help-block field-error">
+    {%- for error in field.errors %}
+    <span><i class="fas fa-exclamation-circle"></i> {{ error }}</span>{% if not loop.last %}<br>{% endif %}
+    {%- endfor %}
+  </div>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro required_mark() -%}
+  <abbr class="required" title="Required">*</abbr>
+{%- endmacro %}

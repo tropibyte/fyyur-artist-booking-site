@@ -6,20 +6,66 @@
 		<h1>Fyyur 🔥</h1>
 		<p class="lead">Where musical artists meet musical venues.</p>
 		<h3>
-			<a href="/venues"><button class="btn btn-primary btn-lg">Find a venue</button></a>
-			<a href="/venues/create"><button class="btn btn-default btn-lg">Post a venue</button></a>
+			<a href="{{ url_for('venues.list_venues') }}"><button class="btn btn-primary btn-lg">Find a venue</button></a>
+			<a href="{{ url_for('venues.create_venue_form') }}"><button class="btn btn-default btn-lg">Post a venue</button></a>
 		</h3>
 		<h3>
-			<a href="/artists"><button class="btn btn-primary btn-lg">Find an artist</button></a>
-			<a href="/artists/create"><button class="btn btn-default btn-lg">Post an artist</button></a>
+			<a href="{{ url_for('artists.list_artists') }}"><button class="btn btn-primary btn-lg">Find an artist</button></a>
+			<a href="{{ url_for('artists.create_artist_form') }}"><button class="btn btn-default btn-lg">Post an artist</button></a>
 		</h3>
 		<p class="lead">Publicize about your show for free.</p>
 		<h3>
-			<a href="/shows/create"><button class="btn btn-default btn-lg">Post a show</button></a>
+			<a href="{{ url_for('shows.create_shows') }}"><button class="btn btn-default btn-lg">Post a show</button></a>
 		</h3>
 	</div>
 	<div class="col-sm-6 hidden-sm hidden-xs">
 		<img id="front-splash" src="{{ url_for('static',filename='img/front-splash.jpg') }}" alt="Front Photo of Musical Band" />
 	</div>
 </div>
+
+{# The ten most recently listed artists and venues, newest first. #}
+{% if recent_artists or recent_venues %}
+<div class="row recently-listed">
+	<div class="col-sm-6">
+		<h2 class="monospace">Recently listed artists</h2>
+		{% if recent_artists %}
+		<ul class="items">
+			{% for artist in recent_artists %}
+			<li>
+				<a href="{{ url_for('artists.show_artist', artist_id=artist.id) }}">
+					<i class="fas fa-users"></i>
+					<div class="item">
+						<h5>{{ artist.name }}</h5>
+						<p>{{ artist.city }}, {{ artist.state }}</p>
+					</div>
+				</a>
+			</li>
+			{% endfor %}
+		</ul>
+		{% else %}
+		<p class="not-seeking"><i class="fas fa-moon"></i> No artists listed yet.</p>
+		{% endif %}
+	</div>
+	<div class="col-sm-6">
+		<h2 class="monospace">Recently listed venues</h2>
+		{% if recent_venues %}
+		<ul class="items">
+			{% for venue in recent_venues %}
+			<li>
+				<a href="{{ url_for('venues.show_venue', venue_id=venue.id) }}">
+					<i class="fas fa-music"></i>
+					<div class="item">
+						<h5>{{ venue.name }}</h5>
+						<p>{{ venue.city }}, {{ venue.state }}</p>
+					</div>
+				</a>
+			</li>
+			{% endfor %}
+		</ul>
+		{% else %}
+		<p class="not-seeking"><i class="fas fa-moon"></i> No venues listed yet.</p>
+		{% endif %}
+	</div>
+</div>
+{% endif %}
 {% endblock %}

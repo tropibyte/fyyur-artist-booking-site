@@ -1,0 +1,58 @@
+{% extends 'layouts/main.html' %}
+{% from 'layouts/form_macros.html' import errors, required_mark %}
+{% block title %}{{ artist.name }} | Availability{% endblock %}
+{% block content %}
+  <div class="form-wrapper wide">
+    <h3 class="form-heading">
+      Availability for <em><a href="{{ url_for('artists.show_artist', artist_id=artist.id) }}">{{ artist.name }}</a></em>
+      <a href="{{ url_for('main.index') }}" title="Back to homepage"><i class="fa fa-home pull-right"></i></a>
+    </h3>
+
+    <p class="lead">
+      A show can only be booked inside one of these windows. An artist with no
+      published windows can be booked at any time.
+    </p>
+
+    {% if artist.availabilities %}
+    <table class="table availability-table">
+      <thead>
+        <tr><th>From (UTC)</th><th>To (UTC)</th><th></th></tr>
+      </thead>
+      <tbody>
+        {% for window in artist.availabilities %}
+        <tr{% if window.end_time < now %} class="text-muted"{% endif %}>
+          <td>{{ window.start_time|datetime('full') }}</td>
+          <td>{{ window.end_time|datetime('full') }}</td>
+          <td>
+            <form method="post"
+                  action="{{ url_for('artists.delete_availability', artist_id=artist.id, availability_id=window.id) }}">
+              {{ form.csrf_token }}
+              <button type="submit" class="btn btn-link btn-sm">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="not-seeking"><i class="fas fa-moon"></i> No windows published &mdash; {{ artist.name }} can be booked at any time.</p>
+    {% endif %}
+
+    <form method="post" class="form"
+          action="{{ url_for('artists.create_availability', artist_id=artist.id) }}">
+      {{ form.csrf_token }}
+      <h4>Add a window</h4>
+      <div class="form-group{% if form.start_time.errors %} has-error{% endif %}">
+        <label for="start_time">Available from {{ required_mark() }}</label>
+        {{ form.start_time(class_ = 'form-control', required = true) }}
+        {{ errors(form.start_time) }}
+      </div>
+      <div class="form-group{% if form.end_time.errors %} has-error{% endif %}">
+        <label for="end_time">Available until {{ required_mark() }}</label>
+        {{ form.end_time(class_ = 'form-control', required = true) }}
+        {{ errors(form.end_time) }}
+      </div>
+      <input type="submit" value="Add Availability" class="btn btn-primary btn-lg btn-block">
+    </form>
+  </div>
+{% endblock %}

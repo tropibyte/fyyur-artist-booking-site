@@ -1,0 +1,63 @@
+{% extends 'layouts/main.html' %}
+{% from 'layouts/form_macros.html' import errors, required_mark %}
+{% block title %}{{ artist.name }} | New Album{% endblock %}
+{% block content %}
+  <div class="form-wrapper wide">
+    <form method="post" class="form"
+          action="{{ url_for('artists.create_album_submission', artist_id=artist.id) }}">
+      {{ form.csrf_token }}
+      <h3 class="form-heading">
+        New album for <em><a href="{{ url_for('artists.show_artist', artist_id=artist.id) }}">{{ artist.name }}</a></em>
+        <a href="{{ url_for('main.index') }}" title="Back to homepage"><i class="fa fa-home pull-right"></i></a>
+      </h3>
+
+      <div class="form-group{% if form.name.errors %} has-error{% endif %}">
+        <label for="name">Album name {{ required_mark() }}</label>
+        {{ form.name(class_ = 'form-control', autofocus = true, required = true) }}
+        {{ errors(form.name) }}
+      </div>
+
+      <div class="form-group{% if form.release_year.errors %} has-error{% endif %}">
+        <label for="release_year">Release year</label>
+        {{ form.release_year(class_ = 'form-control', placeholder='2026') }}
+        {{ errors(form.release_year) }}
+      </div>
+
+      <div class="form-group{% if form.image_link.errors %} has-error{% endif %}">
+        <label for="image_link">Cover art link</label>
+        {{ form.image_link(class_ = 'form-control', placeholder='https://') }}
+        {{ errors(form.image_link) }}
+      </div>
+
+      <h4>Tracks</h4>
+      <small>Leave a row blank to skip it. Track numbers default to the order below.</small>
+      {{ errors(form.songs) }}
+      <table class="table track-table">
+        <thead>
+          <tr><th>#</th><th>Title</th><th>Track no.</th><th>Length (seconds)</th></tr>
+        </thead>
+        <tbody>
+          {% for song in form.songs %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>
+              {{ song.title(class_ = 'form-control', placeholder='Song title') }}
+              {{ errors(song.title) }}
+            </td>
+            <td>
+              {{ song.track_number(class_ = 'form-control', placeholder=loop.index) }}
+              {{ errors(song.track_number) }}
+            </td>
+            <td>
+              {{ song.duration_seconds(class_ = 'form-control', placeholder='240') }}
+              {{ errors(song.duration_seconds) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <input type="submit" value="Add Album" class="btn btn-primary btn-lg btn-block">
+    </form>
+  </div>
+{% endblock %}

@@ -75,7 +75,12 @@
 	</div>
 </section>
 
-<a href="/venues/{{ venue.id }}/edit"><button class="btn btn-primary btn-lg">Edit</button></a>
+<div class="record-actions">
+	<a href="{{ url_for('venues.edit_venue', venue_id=venue.id) }}"><button class="btn btn-primary btn-lg">Edit</button></a>
+	<button class="btn btn-danger btn-lg delete-record"
+			data-url="{{ url_for('venues.delete_venue', venue_id=venue.id) }}"
+			data-name="{{ venue.name }}">Delete</button>
+</div>
 
 {% endblock %}
 

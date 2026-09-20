@@ -1,189 +1,281 @@
 Fyyur
------
+=====
 
-## Introduction
+A musical venue and artist booking site: venues list themselves, artists list
+themselves, and either can book a show with the other. This is the Udacity
+*SQL and Data Modeling for the Web* project, built out from the starter code
+into a working application backed by PostgreSQL.
 
-Fyyur is a musical venue and artist booking site that facilitates the discovery and bookings of shows between local performing artists and venues. This site lets you list new artists and venues, discover them, and list shows with artists as a venue owner.
+The starter shipped finished templates, empty models and hard-coded mock data
+in the controllers. All of the mock data is gone; every page is served from the
+database, with the payload shapes the templates expect kept byte-for-byte
+identical.
 
-Your job is to build out the data models to power the API endpoints for the Fyyur site by connecting to a PostgreSQL database for storing, querying, and creating information about artists and venues on Fyyur.
+---
 
-## Overview
+## What it does
 
-This app is nearly complete. It is only missing one thing… real data! While the views and controllers are defined in this application, it is missing models and model interactions to be able to store retrieve, and update data from a database. By the end of this project, you should have a fully functioning site that is at least capable of doing the following, if not more, using a PostgreSQL database:
+**Core**
 
-* creating new venues, artists, and creating new shows.
-* searching for venues and artists.
-* learning more about a specific artist or venue.
+* Venues listed and grouped by city and state, with a live count of upcoming
+  shows per venue.
+* Artists listed, searchable, each with a detail page.
+* Partial, case-insensitive search for venues and artists.
+* Venue and artist detail pages that separate **past** from **upcoming** shows.
+* Create, edit and delete venues and artists; book shows.
+* Clicking the venue of an upcoming show on an artist's page lands on that
+  venue's page, with the same show under its upcoming shows — and the reverse.
+* Nothing invalid gets in: bad state codes, bad genres, malformed phone numbers
+  and URLs, blank required fields, duplicate listings and double bookings are
+  all rejected, in the form *and* by the schema.
 
-We want Fyyur to be the next new platform that artists and musical venues can use to find each other, and discover new music shows. Let's make that happen!
+**Stand-out features**
 
-## Tech Stack (Dependencies)
+| Feature | Where |
+|---|---|
+| **Artist availability.** An artist publishes windows during which they can be booked; a show outside every published window is rejected. An artist who publishes nothing stays bookable at any time. | `/artists/<id>/availability`, `models.Availability`, `forms.ShowForm.validate_start_time` |
+| **Recently listed artists and venues** on the home page, newest first, capped at ten. | `/`, `models.Artist.recent` / `Venue.recent` |
+| **Search by city and state.** `San Francisco, CA` returns everything in that city; a bare `CA` returns everything in the state; anything else is a name/city search. | `models.parse_city_state` |
+| **Discography.** Albums and their tracks appear on the artist page, with track lengths; albums are created through a form with a nested track list. | `/artists/<id>/albums/create`, `models.Album` / `models.Song` |
+| **Delete** a venue or artist from its page, cascading to its shows. | the Delete button on each detail page |
 
-### 1. Backend Dependencies
-Our tech stack will include the following:
- * **virtualenv** as a tool to create isolated Python environments
- * **SQLAlchemy ORM** to be our ORM library of choice
- * **PostgreSQL** as our database of choice
- * **Python3** and **Flask** as our server language and server framework
- * **Flask-Migrate** for creating and running schema migrations
-You can download and install the dependencies mentioned above using `pip` as:
+---
+
+## Tech stack
+
+Python 3.11 · Flask 3 · SQLAlchemy 2 (via Flask-SQLAlchemy 3.1) ·
+Alembic/Flask-Migrate · Flask-WTF · PostgreSQL 18 · pytest.
+
+The starter pinned Flask 1.x-era packages. They are replaced with current
+releases, which is why `requirements.txt` looks nothing like the original: the
+old pins do not build on a supported Python.
+
+---
+
+## Project structure
+
 ```
-pip install virtualenv
-pip install SQLAlchemy
-pip install postgres
-pip install Flask
-pip install Flask-Migrate
-```
-> **Note** - If we do not mention the specific version of a package, then the default latest stable package will be installed. 
-
-### 2. Frontend Dependencies
-You must have the **HTML**, **CSS**, and **Javascript** with [Bootstrap 3](https://getbootstrap.com/docs/3.4/customize/) for our website's frontend. Bootstrap can only be installed by Node Package Manager (NPM). Therefore, if not already, download and install the [Node.js](https://nodejs.org/en/download/). Windows users must run the executable as an Administrator, and restart the computer after installation. After successfully installing the Node, verify the installation as shown below.
-```
-node -v
-npm -v
-```
-Install [Bootstrap 3](https://getbootstrap.com/docs/3.3/getting-started/) for the website's frontend:
-```
-npm init -y
-npm install bootstrap@3
-```
-
-
-## Main Files: Project Structure
-
-  ```sh
-  ├── README.md
-  ├── app.py *** the main driver of the app. Includes your SQLAlchemy models.
-                    "python app.py" to run after installing dependencies
-  ├── config.py *** Database URLs, CSRF generation, etc
-  ├── error.log
-  ├── forms.py *** Your forms
-  ├── requirements.txt *** The dependencies we need to install with "pip3 install -r requirements.txt"
-  ├── static
-  │   ├── css 
-  │   ├── font
-  │   ├── ico
-  │   ├── img
-  │   └── js
-  └── templates
-      ├── errors
-      ├── forms
-      ├── layouts
-      └── pages
-  ```
-
-Overall:
-* Models are located in the `MODELS` section of `app.py`.
-* Controllers are also located in `app.py`.
-* The web frontend is located in `templates/`, which builds static assets deployed to the web server at `static/`.
-* Web forms for creating data are located in `form.py`
-
-
-Highlight folders:
-* `templates/pages` -- (Already complete.) Defines the pages that are rendered to the site. These templates render views based on data passed into the template’s view, in the controllers defined in `app.py`. These pages successfully represent the data to the user, and are already defined for you.
-* `templates/layouts` -- (Already complete.) Defines the layout that a page can be contained in to define footer and header code for a given page.
-* `templates/forms` -- (Already complete.) Defines the forms used to create new artists, shows, and venues.
-* `app.py` -- (Missing functionality.) Defines routes that match the user’s URL, and controllers which handle data and renders views to the user. This is the main file you will be working on to connect to and manipulate the database and render views with data to the user, based on the URL.
-* Models in `app.py` -- (Missing functionality.) Defines the data models that set up the database tables.
-* `config.py` -- (Missing functionality.) Stores configuration variables and instructions, separate from the main application code. This is where you will need to connect to the database.
-
-
-Instructions
------
-
-1. Understand the Project Structure (explained above) and where important files are located.
-2. Build and run local development following the Development Setup steps below.
-3. Fill in the missing functionality in this application: this application currently pulls in fake data, and needs to now connect to a real database and talk to a real backend.
-4. Fill out every `TODO` section throughout the codebase. We suggest going in order of the following:
-    * Connect to a database in `config.py`. A project submission that uses a local database connection is fine.
-    * Using SQLAlchemy, set up normalized models for the objects we support in our web app in the Models section of `app.py`. Check out the sample pages provided at /artists/1, /venues/1, and /shows for examples of the data we want to model, using all of the learned best practices in database schema design. Implement missing model properties and relationships using database migrations via Flask-Migrate.
-    * Implement form submissions for creating new Venues, Artists, and Shows. There should be proper constraints, powering the `/create` endpoints that serve the create form templates, to avoid duplicate or nonsensical form submissions. Submitting a form should create proper new records in the database.
-    * Implement the controllers for listing venues, artists, and shows. Note the structure of the mock data used. We want to keep the structure of the mock data.
-    * Implement search, powering the `/search` endpoints that serve the application's search functionalities.
-    * Serve venue and artist detail pages, powering the `<venue|artist>/<id>` endpoints that power the detail pages.
-
-#### Data Handling with `Flask-WTF` Forms
-The starter codes use an interactive form builder library called [Flask-WTF](https://flask-wtf.readthedocs.io/). This library provides useful functionality, such as form validation and error handling. You can peruse the Show, Venue, and Artist form builders in `forms.py` file. The WTForms are instantiated in the `app.py` file. For example, in the `create_shows()` function, the Show form is instantiated from the command: `form = ShowForm()`. To manage the request from Flask-WTF form, each field from the form has a `data` attribute containing the value from user input. For example, to handle the `venue_id` data from the Venue form, you can use: `show = Show(venue_id=form.venue_id.data)`, instead of using `request.form['venue_id']`.
-
-Acceptance Criteria
------
-
-1. The web app should be successfully connected to a PostgreSQL database. A local connection to a database on your local computer is fine.
-2. There should be no use of mock data throughout the app. The data structure of the mock data per controller should be kept unmodified when satisfied by real data.
-3. The application should behave just as before with mock data, but now uses real data from a real backend server, with real search functionality. For example:
-  * when a user submits a new artist record, the user should be able to see it populate in /artists, as well as search for the artist by name and have the search return results.
-  * I should be able to go to the URL `/artist/<artist-id>` to visit a particular artist’s page using a unique ID per artist, and see real data about that particular artist.
-  * Venues should continue to be displayed in groups by city and state.
-  * Search should be allowed to be partial string matching and case-insensitive.
-  * Past shows versus Upcoming shows should be distinguished in Venue and Artist pages.
-  * A user should be able to click on the venue for an upcoming show in the Artist's page, and on that Venue's page, see the same show in the Venue Page's upcoming shows section.
-4. As a fellow developer on this application, I should be able to run `flask db migrate`, and have my local database (once set up and created) be populated with the right tables to run this application and have it interact with my local postgres server, serving the application's needs completely with real data I can seed my local database with.
-  * The models should be completed (see TODOs in the `Models` section of `app.py`) and model the objects used throughout Fyyur.
-  * Define the models in a different file to follow [Separation of Concerns](https://en.wikipedia.org/wiki/Separation_of_concerns) design principles. You can refactor the models to a new file, such as `models.py`.
-  * The right _type_ of relationship and parent-child dynamics between models should be accurately identified and fit the needs of this particular application.
-  * The relationship between the models should be accurately configured, and referential integrity amongst the models should be preserved.
-  * `flask db migrate` should work, and populate my local postgres database with properly configured tables for this application's objects, including proper columns, column data types, constraints, defaults, and relationships that completely satisfy the needs of this application. The proper type of relationship between venues, artists, and shows should be configured.
-
-##### Stand Out
-
-Looking to go above and beyond? This is the right section for you! Here are some challenges to make your submission stand out:
-
-*  Implement artist availability. An artist can list available times that they can be booked. Restrict venues from being able to create shows with artists during a show time that is outside of their availability.
-* Show Recent Listed Artists and Recently Listed Venues on the homepage, returning results for Artists and Venues sorting by newly created. Limit to the 10 most recently listed items.
-* Implement Search Artists by City and State, and Search Venues by City and State. Searching by "San Francisco, CA" should return all artists or venues in San Francisco, CA.
-
-Best of luck in your final project! Fyyur depends on you!
-
-
-## Development Setup
-1. **Download the project starter code locally**
-```
-git clone https://github.com/udacity/FSND.git
-cd FSND/projects/01_fyyur/starter_code 
+fyyur/
+├── app.py                  application factory, CLI commands, logging
+├── config.py               environment-driven settings (database URL, secrets)
+├── constants.py            states, genres, phone pattern -- one source of truth
+├── extensions.py           db / migrate / moment / csrf singletons
+├── models.py               schema, relationships, and every query that touches it
+├── forms.py                Flask-WTF forms and their validation rules
+├── filters.py              the `datetime` Jinja filter
+├── seed.py                 demo catalogue (`flask seed`)
+├── sql_preview.py          prints the SQL each ORM helper compiles to
+├── controllers/
+│   ├── __init__.py         blueprint registration
+│   ├── helpers.py          commit-and-flash, constraint-error translation
+│   ├── main.py             home page
+│   ├── venues.py           /venues/...
+│   ├── artists.py          /artists/...  (+ availability, albums)
+│   ├── shows.py            /shows/...
+│   └── errors.py           404 / 500
+├── migrations/             Alembic, generated by flask db migrate
+├── tests/                  pytest suite against a real Postgres database
+├── docs/
+│   ├── SCHEMA.md           ER diagram, normalisation argument, every constraint
+│   └── SQL_EQUIVALENTS.md  each ORM query beside the SQL it emits
+├── static/  templates/     front end (starter's, plus the additions below)
+└── requirements.txt
 ```
 
-2. **Create an empty repository in your Github account online. To change the remote repository path in your local repository, use the commands below:**
-```
-git remote -v 
-git remote remove origin 
-git remote add origin <https://github.com/<USERNAME>/<REPO_NAME>.git>
-git branch -M master
-```
-Once you have finished editing your code, you can push the local repository to your Github account using the following commands.
-```
-git add . --all   
-git commit -m "your comment"
-git push -u origin master
+**Separation of concerns.** Models own the queries; controllers own the HTTP;
+forms own the validation; configuration owns the environment. A controller is
+usually one line of intent (`Venue.grouped_by_area()`) and a `render_template`.
+
+---
+
+## Setup
+
+Everything below assumes PostgreSQL is installed and running.
+
+### 1. Create the database and role
+
+Windows PowerShell:
+
+```powershell
+& "C:\Program Files\PostgreSQL\18\bin\psql.exe" -U postgres -h 127.0.0.1 -v ON_ERROR_STOP=1 `
+  -c "CREATE ROLE fyyur LOGIN PASSWORD 'fyyur_dev_2026' CREATEDB;" `
+  -c "CREATE DATABASE fyyur OWNER fyyur;" `
+  -c "CREATE DATABASE fyyur_test OWNER fyyur;"
 ```
 
-3. **Initialize and activate a virtualenv using:**
-```
-python -m virtualenv env
-source env/bin/activate
-```
->**Note** - In Windows, the `env` does not have a `bin` directory. Therefore, you'd use the analogous command shown below:
-```
-source env/Scripts/activate
+macOS / Linux:
+
+```bash
+psql -U postgres -h 127.0.0.1 -v ON_ERROR_STOP=1 \
+  -c "CREATE ROLE fyyur LOGIN PASSWORD 'fyyur_dev_2026' CREATEDB;" \
+  -c "CREATE DATABASE fyyur OWNER fyyur;" \
+  -c "CREATE DATABASE fyyur_test OWNER fyyur;"
 ```
 
-4. **Install the dependencies:**
+`fyyur_test` is only needed to run the test suite.
+
+### 2. Environment
+
+```bash
+cp .env.example .env     # then edit the password if you changed it
 ```
+
+`config.py` reads `DATABASE_URL` from `.env`; nothing in the code hard-codes a
+password, and `.env` is git-ignored.
+
+### 3. Virtual environment and dependencies
+
+Windows PowerShell:
+
+```powershell
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 ```
 
-5. **Run the development server:**
-```
-export FLASK_APP=myapp
-export FLASK_ENV=development # enables debug mode
-python3 app.py
+macOS / Linux:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
 
-6. **Verify on the Browser**<br>
-Navigate to project homepage [http://127.0.0.1:5000/](http://127.0.0.1:5000/) or [http://localhost:5000](http://localhost:5000) 
+### 4. Create the tables
 
-## Troubleshooting:
-- If you encounter any dependency errors, please ensure that you are using Python 3.9 or lower.
-- If you are still facing the dependency errors, follow the given commands:
-  - `using pip install --upgrade flask-moment`
-  - `Using pip install Werkzeug==2.0.0`
-  - `Using pip uninstall Flask and then pip install flask==2.0.3`
+```bash
+flask db upgrade
+```
+
+To regenerate the migration from scratch instead:
+
+```bash
+flask db migrate -m "fyyur schema"
+flask db upgrade
+```
+
+### 5. Load the demo catalogue (optional but recommended)
+
+```bash
+flask seed
+```
+
+This loads the three venues, three artists and five shows the starter used as
+mock data — same names, same ids, so `/venues/1` and `/artists/4` show what the
+project brief shows — plus availability windows and a few albums.
+
+### 6. Run it
+
+```bash
+python app.py
+```
+
+http://127.0.0.1:5000/ — or set `PORT=3000` for the Udacity workspace.
+
+---
+
+## Tests
+
+```bash
+pytest
+```
+
+60-odd tests run against the real `fyyur_test` database, not SQLite: most of
+what is worth testing here (CHECK constraints, `ON DELETE CASCADE`, `ILIKE`,
+`FILTER` aggregates) either behaves differently or does not exist on another
+engine. The suite covers the models, every constraint, the query helpers, and
+every endpoint end-to-end — including the rubric's click-through: book a show,
+then assert it appears on both the artist's page and the venue's page.
+
+---
+
+## Seeing the SQL
+
+```bash
+flask sql-preview           # every query helper, compiled to PostgreSQL
+flask sql-preview search    # just the search statements
+FYYUR_SQL_ECHO=1 python app.py   # echo every statement as it runs
+```
+
+`docs/SQL_EQUIVALENTS.md` pairs each ORM call with the SQL it produces,
+including the `INSERT`/`UPDATE`/`DELETE` paths.
+
+---
+
+## Data model
+
+Full detail — ER diagram, normalisation argument, every constraint and index —
+is in **[docs/SCHEMA.md](docs/SCHEMA.md)**. In brief:
+
+* **Artist ↔ Venue is many-to-many**, realised through **`Show`** as an
+  association object, because the association carries its own attribute
+  (`start_time`) and is a thing the app lists in its own right.
+* **Genres are a table**, joined many-to-many through `VenueGenre` /
+  `ArtistGenre`. A comma-separated string or an array column would break first
+  normal form and make "everything tagged Jazz" a substring scan.
+* **Every rule is enforced twice**: once in the form, for a readable message,
+  and once in the schema, because two concurrent requests can both pass a
+  Python check and only one can win a unique index.
+* **All timestamps are `TIMESTAMP WITH TIME ZONE`** and the application works
+  in UTC throughout.
+
+### One clock, end to end
+
+Show times, availability windows and every rendered date are UTC. A
+`datetime-local` input has no offset, so `forms.as_utc` anchors what the user
+typed to UTC, and the `datetime` Jinja filter renders with `tzinfo=UTC` —
+otherwise Babel would quietly convert to the *server's* zone and a show entered
+as 20:00 would come back as 16:00 on an Eastern machine. Postgres returns
+`timestamptz` values in the session's zone, so the validation messages convert
+back before they claim to be UTC (`forms.utc_label`).
+
+---
+
+## Changes to the starter's front end
+
+The templates were described as complete, and their structure is untouched.
+These edits were necessary:
+
+* `layouts/main.html` — endpoint names gained a blueprint prefix
+  (`url_for('venues.list_venues')` instead of `url_for('venues')`), the navbar
+  highlight now asks `request.blueprint`, both search forms and a `<meta>` tag
+  carry a CSRF token, each search form gained a screen-reader-only submit
+  button (so submitting does not depend on implicit form submission), and
+  flashed errors render red instead of blue.
+* `errors/404.html`, `errors/500.html` — the same endpoint rename.
+* All form templates — added `{{ form.csrf_token }}` (site-wide CSRF is on) and
+  per-field inline error messages.
+* `pages/home.html` — the two "recently listed" panels.
+* `pages/show_artist.html` — discography and availability sections, plus
+  Availability / Add album / Delete buttons.
+* `pages/show_venue.html` — a Delete button.
+* New: `forms/new_availability.html`, `forms/new_album.html`,
+  `layouts/form_macros.html`, `static/css/fyyur.custom.css`.
+* `static/js/script.js` — the fetch() call behind the delete buttons.
+
+---
+
+## Rubric map
+
+| Criterion | Where it lives |
+|---|---|
+| Models in relational, normalised form; correct data types | `models.py`, `docs/SCHEMA.md` |
+| Show connects Artist and Venue, correct relationship type | `models.Show` — association object over a many-to-many |
+| Local PostgreSQL connection | `config.py` (`DATABASE_URL`, no hard-coded credentials) |
+| Foreign keys on Show; Artist/Venue in 3NF | `models.Show`, `docs/SCHEMA.md` § Normalisation |
+| Complete SQLAlchemy model definitions | `models.py` |
+| Accurate queries per endpoint | query helpers on the models, called from `controllers/` |
+| Minimal raw SQL | one `setval()` in `seed.py`; nothing in the request path |
+| SELECT / WHERE for search | `Venue.search`, `Artist.search` (ILIKE) |
+| JOINs for past performances / venues performed | `Venue.shows_by_period`, `Artist.shows_by_period` |
+| Forms INSERT into the database | `controllers/venues.py`, `controllers/artists.py`, `controllers/shows.py` |
+| Unique and required constraints at the database level | `__table_args__` in `models.py`; see `docs/SCHEMA.md` |
+| Well-organised, decoupled code base | the structure above |
+| Builds and runs without errors | `python app.py`; `pytest` covers every route |
+| Stand-outs: availability, recent listings, city/state search, albums | see the table at the top |
+
+---
+
+## Licence
+
+Starter code © Udacity, under the licence in `LICENSE.txt`.
